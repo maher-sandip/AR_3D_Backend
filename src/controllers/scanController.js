@@ -2,6 +2,7 @@ import { processFramesToGLB } from "../services/processingService.js";
 import {
   uploadGLB,
   createScanRecord,
+  updateScanRecord,
 } from "../services/supabaseService.js";
 
 export const scanController = async (req, res) => {
@@ -15,25 +16,22 @@ export const scanController = async (req, res) => {
       });
     }
 
-    // 1️⃣ Create initial DB record
-    const scanData = {
+    // ✅ 1. Create ONE record
+    const scan = await createScanRecord({
       status: "processing",
       frame_count: files.length,
-    };
+    });
 
-    await createScanRecord(scanData);
-
-    // 2️⃣ Process → GLB
+    // ✅ 2. Process
     const glbPath = await processFramesToGLB(files);
 
-    // 3️⃣ Upload to Supabase
+    // ✅ 3. Upload
     const glbUrl = await uploadGLB(glbPath);
 
-    // 4️⃣ Save final result
-    await createScanRecord({
+    // ✅ 4. Update SAME record
+    await updateScanRecord(scan.id, {
       status: "completed",
       glb_url: glbUrl,
-      frame_count: files.length,
     });
 
     res.json({

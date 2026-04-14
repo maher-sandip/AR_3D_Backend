@@ -1,4 +1,4 @@
-exports.errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, next) => {
   console.error(err);
 
   // Mongoose duplicate key error
