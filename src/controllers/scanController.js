@@ -1,42 +1,52 @@
-const path = require("path");
-const fs = require("fs");
-const { createGLBFromImage } = require("../utils/createGLB");
+import { processFramesToGLB } from "../services/processingService.js";
+import {
+  uploadGLB,
+  createScanRecord,
+} from "../services/supabaseService.js";
 
-const uploadScan = async (req, res) => {
+export const scanController = async (req, res) => {
   try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: "No frames uploaded" });
+    const files = req.files;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No frames uploaded",
+      });
     }
 
-    const fileId = Date.now().toString();
-    const middleIndex = Math.floor(req.files.length / 2);
-    const bestFrame = req.files[middleIndex];
+    // 1️⃣ Create initial DB record
+    const scanData = {
+      status: "processing",
+      frame_count: files.length,
+    };
 
-    console.log(`Got ${req.files.length} frames`);
-    console.log(`Using frame: ${bestFrame.path}`);
+    await createScanRecord(scanData);
 
-    // ✅ Correct output path
-    const outputDir = path.join(__dirname, "../../uploads/output");
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
+    // 2️⃣ Process → GLB
+    const glbPath = await processFramesToGLB(files);
 
-    const glbPath = path.join(outputDir, `${fileId}.glb`);
-    await createGLBFromImage(bestFrame.path, glbPath);
+    // 3️⃣ Upload to Supabase
+    const glbUrl = await uploadGLB(glbPath);
 
-    return res.json({
-      success: true,
-      glbUrl: `/output/${fileId}.glb`,
-      totalFrames: req.files.length,
+    // 4️⃣ Save final result
+    await createScanRecord({
+      status: "completed",
+      glb_url: glbUrl,
+      frame_count: files.length,
     });
 
-  } catch (err) {
-    console.error("Scan error:", err.message);
-    return res.status(500).json({
-      error: "Failed to create 3D model",
-      detail: err.message,
+    res.json({
+      success: true,
+      glbUrl,
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Processing failed",
     });
   }
 };
-
-module.exports = uploadScan;

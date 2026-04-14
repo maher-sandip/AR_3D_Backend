@@ -1,35 +1,71 @@
-const express = require("express");
-const cors = require("cors");
-const path = require("path");
-const fs = require("fs");
+import express from "express";
+import cors from "cors";
+import path from "path";
+import fs from "fs";
+import "dotenv/config";
 
-const scanRoute = require("./routes/scanRoute");
+import scanRoute from "./routes/scanRoute.js";
+
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 
-// Middleware
+// ✅ Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Ensure output folder exists
-const outputPath = path.join(__dirname, "uploads/output");
-if (!fs.existsSync(outputPath)) {
-  fs.mkdirSync(outputPath, { recursive: true });
-}
+// ✅ Ensure folders exist
+const uploadsDir = path.join(__dirname, "uploads");
+const outputDir = path.join(uploadsDir, "output");
 
-// Serve GLB files statically
-app.use("/output", express.static("src/uploads/output"));
-
-// Routes
-app.use("/api/video", scanRoute);
-
-// Health check
-app.get("/", (req, res) => {
-  res.json({ status: "ScanBackend running ✅" });
+[uploadsDir, outputDir].forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 });
 
-const PORT = 5000;
+// ✅ Static file serving (GLB local fallback)
+app.use("/output", express.static(outputDir));
+
+// ✅ Routes
+app.use("/api/video", scanRoute);
+
+// ✅ Health check
+app.get("/", (req, res) => {
+  res.json({
+    status: "ScanBackend running ✅",
+    env: process.env.NODE_ENV || "development",
+  });
+});
+
+// ✅ 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+  });
+});
+
+// ✅ Global error handler
+app.use((err, req, res, next) => {
+  console.error("❌ Error:", err);
+
+  res.status(500).json({
+    success: false,
+    message: "Internal Server Error",
+  });
+});
+
+// ✅ Server start
+const PORT = process.env.PORT || 5001;
+
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ ScanBackend running on http://0.0.0.0:${PORT}`);
-  console.log(`📱 Phone should connect to http://192.168.0.110:${PORT}`);
+  console.log("🚀 Server started successfully");
+  console.log(`🌐 Local: http://localhost:${PORT}`);
+  console.log(`📱 Mobile: http://192.168.0.110:${PORT}`);
 });
