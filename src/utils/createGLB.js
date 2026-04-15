@@ -1,29 +1,29 @@
-const { Document, NodeIO } = require("@gltf-transform/core");
-const { KHRMaterialsUnlit } = require("@gltf-transform/extensions");
-const fs = require("fs");
-const sharp = require("sharp");
+import fs from "fs";
+import sharp from "sharp";
+import { Document, NodeIO } from "@gltf-transform/core";
+import { KHRMaterialsUnlit } from "@gltf-transform/extensions";
 
-const createGLBFromImage = async (imagePath, glbPath) => {
-  console.log("Creating GLB from image:", imagePath);
+export const createGLBFromImage = async (imagePath, glbPath) => {
+  console.log("📸 Creating GLB from image:", imagePath);
 
-  // 1. Read and resize image
+  // 1️⃣ Resize & compress image
   const imageBuffer = await sharp(imagePath)
     .resize(512, 512, { fit: "cover" })
     .jpeg({ quality: 80 })
     .toBuffer();
 
-  // 2. Create GLTF Document
+  // 2️⃣ Create GLTF Document
   const document = new Document();
   const root = document.getRoot();
   document.createExtension(KHRMaterialsUnlit);
 
-  // 3. Create texture
+  // 3️⃣ Texture
   const texture = document
     .createTexture("dishTexture")
     .setImage(imageBuffer)
     .setMimeType("image/jpeg");
 
-  // 4. Create material
+  // 4️⃣ Material
   const material = document
     .createMaterial("dishMaterial")
     .setBaseColorTexture(texture)
@@ -31,7 +31,7 @@ const createGLBFromImage = async (imagePath, glbPath) => {
     .setRoughnessFactor(0.8)
     .setMetallicFactor(0.0);
 
-  // 5. Create cylinder geometry
+  // 5️⃣ Geometry (Cylinder / Plate)
   const segments = 32;
   const radius = 1.0;
   const height = 0.15;
@@ -41,63 +41,77 @@ const createGLBFromImage = async (imagePath, glbPath) => {
   const indices = [];
   const normals = [];
 
-  // Top center
+  // 🔹 Top center
   positions.push(0, height, 0);
   uvs.push(0.5, 0.5);
   normals.push(0, 1, 0);
 
-  // Top circle vertices
+  // 🔹 Top circle
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
+
     positions.push(x, height, z);
     uvs.push(0.5 + Math.cos(angle) * 0.5, 0.5 + Math.sin(angle) * 0.5);
     normals.push(0, 1, 0);
   }
 
-  // Top face indices
+  // 🔹 Top face indices
   for (let i = 1; i <= segments; i++) {
     indices.push(0, i, i + 1);
   }
 
   const sideStart = positions.length / 3;
 
-  // Side vertices
+  // 🔹 Side vertices
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
+
+    const length = Math.sqrt(x * x + z * z);
+
+    const nx = x / length;
+    const nz = z / length;
+
     const u = i / segments;
+
+    // top
     positions.push(x, height, z);
     uvs.push(u, 0);
-    normals.push(x, 0, z);
+    normals.push(nx, 0, nz);
+
+    // bottom
     positions.push(x, 0, z);
     uvs.push(u, 1);
-    normals.push(x, 0, z);
+    normals.push(nx, 0, nz);
   }
 
-  // Side indices
+  // 🔹 Side indices
   for (let i = 0; i < segments; i++) {
     const a = sideStart + i * 2;
     const b = sideStart + i * 2 + 1;
     const c = sideStart + i * 2 + 2;
     const d = sideStart + i * 2 + 3;
+
     indices.push(a, b, c);
     indices.push(b, d, c);
   }
 
-  // Bottom center
+  // 🔹 Bottom center
   const bottomCenter = positions.length / 3;
   positions.push(0, 0, 0);
   uvs.push(0.5, 0.5);
   normals.push(0, -1, 0);
 
   const bottomRingStart = positions.length / 3;
+
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
+
     positions.push(x, 0, z);
     uvs.push(0.5 + Math.cos(angle) * 0.5, 0.5 + Math.sin(angle) * 0.5);
     normals.push(0, -1, 0);
@@ -107,7 +121,7 @@ const createGLBFromImage = async (imagePath, glbPath) => {
     indices.push(bottomCenter, bottomRingStart + i + 1, bottomRingStart + i);
   }
 
-  // 6. Create accessors
+  // 6️⃣ Buffer + Accessors
   const buffer = document.createBuffer();
 
   const positionAccessor = document
@@ -128,13 +142,17 @@ const createGLBFromImage = async (imagePath, glbPath) => {
     .setType("VEC3")
     .setArray(new Float32Array(normals));
 
+  // ✅ Safe index type
+  const IndexArray =
+    positions.length / 3 > 65535 ? Uint32Array : Uint16Array;
+
   const indexAccessor = document
     .createAccessor()
     .setBuffer(buffer)
     .setType("SCALAR")
-    .setArray(new Uint16Array(indices));
+    .setArray(new IndexArray(indices));
 
-  // 7. Create mesh
+  // 7️⃣ Mesh
   const primitive = document
     .createPrimitive()
     .setAttribute("POSITION", positionAccessor)
@@ -146,15 +164,22 @@ const createGLBFromImage = async (imagePath, glbPath) => {
   const mesh = document.createMesh("dish").addPrimitive(primitive);
   const node = document.createNode("dishNode").setMesh(mesh);
   const scene = document.createScene("scene").addChild(node);
+
   root.setDefaultScene(scene);
 
-  // 8. Write GLB
+  // 8️⃣ Ensure folder exists
+  const dir = glbPath.split("/").slice(0, -1).join("/");
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  // 9️⃣ Write GLB
   const io = new NodeIO();
   const glbBuffer = await io.writeBinary(document);
+
   fs.writeFileSync(glbPath, glbBuffer);
 
   console.log("✅ GLB created at:", glbPath);
+
   return glbPath;
 };
-
-module.exports = { createGLBFromImage };
