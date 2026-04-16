@@ -78,7 +78,6 @@ export const processImages = async (req, res) => {
     await run3DPipeline();
 
     // 2️⃣ Convert OBJ → GLB
-    // const objPath = "output/scene_dense_mesh_texture.obj";
     const plyPath = "output/mesh.ply";
     const glbPath = "output/model.glb";
 

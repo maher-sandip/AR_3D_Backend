@@ -5,7 +5,10 @@ IMAGE_PATH=./uploads
 WORK_PATH=./output
 DB_PATH=$WORK_PATH/database.db
 
+# 🔥 CLEAN OLD DATA
+rm -rf $WORK_PATH
 mkdir -p $WORK_PATH
+
 
 echo "Step 1: Feature Extraction"
 colmap feature_extractor \
@@ -34,14 +37,16 @@ echo "Step 5: Dense Stereo"
 colmap patch_match_stereo \
   --workspace_path $WORK_PATH/dense \
   --workspace_format COLMAP \
-  --PatchMatchStereo.geom_consistency true
+  --PatchMatchStereo.geom_consistency true \
+  --PatchMatchStereo.gpu_index 0
 
 echo "Step 6: Stereo Fusion"
 colmap stereo_fusion \
   --workspace_path $WORK_PATH/dense \
   --workspace_format COLMAP \
   --input_type geometric \
-  --output_path $WORK_PATH/dense/fused.ply
+  --output_path $WORK_PATH/dense/fused.ply \
+  --StereoFusion.use_gpu 0
 
 echo "Step 7: Meshing"
 colmap poisson_mesher \
