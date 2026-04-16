@@ -67,5 +67,5 @@ const PORT = process.env.PORT || 5001;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("🚀 Server started successfully");
   console.log(`🌐 Local: http://localhost:${PORT}`);
-  console.log(`📱 Mobile: http://192.168.0.110:${PORT}`);
+  console.log(`📱 Mobile: http://192.168.0.106:${PORT}`);
 });
